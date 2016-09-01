@@ -611,23 +611,35 @@ class Abstract_Wallet(PrintError):
         received, sent = self.get_addr_io(address)
         return sum([v for height, v, is_cb in received.values()])
 
+
     # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
-    def get_addr_balance(self, address):
+    def get_addr_balance(self, address, exclude_claimtrietx=False):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
-                x += v
-            elif tx_height > 0:
-                c += v
-            else:
-                u += v
-            if txo in sent:
-                if sent[txo] > 0:
-                    c -= v
+            exclude_tx = False 
+            # check if received transaction is a claimtrie tx to ourself
+            if exclude_claimtrietx:
+                prevout_hash,prevout_n = txo.split(':')
+                tx = self.transactions.get(prevout_hash)
+                tx.deserialize()
+                txout = tx.outputs()[int(prevout_n)]
+                exclude_tx =  txout[0] & (TYPE_CLAIM | TYPE_UPDATE | TYPE_SUPPORT)
+
+            if not exclude_tx:       
+                if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+                    x += v
+                elif tx_height > 0:
+                    c += v
                 else:
-                    u -= v
+                    u += v
+                if txo in sent:
+                    if sent[txo] > 0:
+                        c -= v
+                    else:
+                        u -= v
         return c, u, x
+
 
     # noinspection PyPep8
     def get_spendable_coins(self, domain = None, exclude_frozen = True, abandon_txid=None):
@@ -709,18 +721,18 @@ class Abstract_Wallet(PrintError):
                 return acc_id
         return None
 
-    def get_account_balance(self, account):
-        return self.get_balance(self.get_account_addresses(account))
+    def get_account_balance(self, account, exclude_claimtrietx=False):
+        return self.get_balance(self.get_account_addresses(account, exclude_claimtrietx))
 
     def get_frozen_balance(self):
         return self.get_balance(self.frozen_addresses)
 
-    def get_balance(self, domain=None):
+    def get_balance(self, domain=None, exclude_claimtrietx=False):
         if domain is None:
             domain = self.addresses(True)
         cc = uu = xx = 0
         for addr in domain:
-            c, u, x = self.get_addr_balance(addr)
+            c, u, x = self.get_addr_balance(addr,exclude_claimtrietx)
             cc += c
             uu += u
             xx += x
@@ -925,6 +937,7 @@ class Abstract_Wallet(PrintError):
                     expired = tx_height + lbrycrd.EXPIRATION_BLOCKS <= local_height
                     output = {
                         'txid': prevout_hash,
+                        'nOut': int(prevout_n),
                         'address': addr,
                         'category': "name",
                         'amount': float(value)/COIN,

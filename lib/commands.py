@@ -32,7 +32,7 @@ import util
 from util import print_msg, format_satoshis, print_stderr
 import lbrycrd
 from lbrycrd import is_address, hash_160_to_bc_address, hash_160, COIN, TYPE_ADDRESS, Hash
-from lbrycrd import TYPE_CLAIM, TYPE_SUPPORT, TYPE_UPDATE
+from lbrycrd import TYPE_CLAIM, TYPE_SUPPORT, TYPE_UPDATE, RECOMMENDED_CLAIMTRIE_HASH_CONFIRMS
 from transaction import Transaction
 from transaction import deserialize as deserialize_transaction, script_GetOp, decode_claim_script
 import paymentrequest
@@ -278,12 +278,12 @@ class Commands:
         return self.wallet.get_public_keys(address)
 
     @command('w')
-    def getbalance(self, account=None):
+    def getbalance(self, account=None, exclude_claimtrietx=False):
         """Return the balance of your wallet. """
         if account is None:
-            c, u, x = self.wallet.get_balance()
+            c, u, x = self.wallet.get_balance(exclude_claimtrietx=exclude_claimtrietx)
         else:
-            c, u, x = self.wallet.get_account_balance(account)
+            c, u, x = self.wallet.get_account_balance(account,exclude_claimtrietx)
         out = {"confirmed": str(Decimal(c)/COIN)}
         if u:
             out["unconfirmed"] = str(Decimal(u)/COIN)
@@ -683,7 +683,10 @@ class Commands:
                                 effective_amount = amount + support_amount
                                 h = tx['lockTime'] + 1
                                 decoded_script = [r for r in script_GetOp(scriptPubKey.decode('hex'))]
-                                n, script = decode_claim_script(decoded_script)
+                                decode_out = decode_claim_script(decoded_script)
+                                if decode_out is False:                                    
+                                    return {'error': 'failed to decode as claim script'} 
+                                n,script = decode_out
                                 decoded_name, decoded_value = n.name, n.value
                                 if decoded_name == name:
                                     return _build_response(decoded_value, computed_txhash, nOut, effective_amount, h)
@@ -695,7 +698,7 @@ class Commands:
                     return {'error': "didn't receive a transaction with the proof"}
                 return {'value': {}}
             return {'error': "proof not in result"}
-        height = self.network.get_local_height()
+        height = self.network.get_local_height() - RECOMMENDED_CLAIMTRIE_HASH_CONFIRMS
         block_header = self.network.blockchain.read_header(height)
         blockhash = self.network.blockchain.hash_header(block_header)
         response = self.network.synchronous_get(('blockchain.claimtrie.getvalue', [name, blockhash]))
@@ -777,6 +780,7 @@ param_descriptions = {
     'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
     'requested_amount': 'Requested amount (in BTC).',
     'outputs': 'list of ["address", amount]',
+    'exclude_claimtrietx': 'Exclude claimtrie transactions.',
 }
 
 command_options = {
@@ -806,6 +810,7 @@ command_options = {
     'pending':     (None, "--pending",     "Show only pending requests."),
     'expired':     (None, "--expired",     "Show only expired requests."),
     'paid':        (None, "--paid",        "Show only paid requests."),
+    'exclude_claimtrietx':(None,"--exclude_claimtrietx", "Exclude claimtrie transactions"),
 }
 
 
