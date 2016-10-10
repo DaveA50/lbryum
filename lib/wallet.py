@@ -221,6 +221,7 @@ class Abstract_Wallet(PrintError):
         self.txo = self.storage.get('txo', {})
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
+        self.claimtrie_transactions = self.storage.get('claimtrie_transactions',{}) 
         self.transactions = {}
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
@@ -228,6 +229,15 @@ class Abstract_Wallet(PrintError):
             if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None and (tx_hash not in self.pruned_txo.values()):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
+            
+            # add to claimtrie transactions if its a claimtrie transaction
+            tx.deserialize()
+            for n,txout in enumerate(tx.outputs()):
+                if txout[0] & (TYPE_CLAIM | TYPE_UPDATE | TYPE_SUPPORT):
+                    self.claimtrie_transactions[tx_hash+':'+str(n)] = txout[0] 
+                                            
+        
+
 
     @profiler
     def save_transactions(self, write=False):
@@ -240,6 +250,7 @@ class Abstract_Wallet(PrintError):
             self.storage.put('txo', self.txo)
             self.storage.put('pruned_txo', self.pruned_txo)
             self.storage.put('addr_history', self.history)
+            self.storage.put('claimtrie_transactions',self.claimtrie_transactions)
             if write:
                 self.storage.write()
 
@@ -621,10 +632,9 @@ class Abstract_Wallet(PrintError):
             # check if received transaction is a claimtrie tx to ourself
             if exclude_claimtrietx:
                 prevout_hash,prevout_n = txo.split(':')
-                tx = self.transactions.get(prevout_hash)
-                tx.deserialize()
-                txout = tx.outputs()[int(prevout_n)]
-                exclude_tx =  txout[0] & (TYPE_CLAIM | TYPE_UPDATE | TYPE_SUPPORT)
+                tx_type = self.claimtrie_transactions.get(txo)
+                if tx_type is not None:
+                    exclude_tx = True
 
             if not exclude_tx:       
                 if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
@@ -791,6 +801,7 @@ class Abstract_Wallet(PrintError):
                 _type, x, v = txo
                 if _type & TYPE_CLAIM:
                     x = x[1]
+                    self.claimtrie_transactions[ser] = _type  
                 if _type & TYPE_ADDRESS:
                     addr = x
                 elif _type & TYPE_PUBKEY:
@@ -951,6 +962,9 @@ class Abstract_Wallet(PrintError):
                         claim_name, claim_value = txout[1][0]
                         output['name'] = claim_name
                         output['value'] = claim_value
+                        claim_id = lbrycrd.claim_id_hash(rev_hex(output['txid']).decode('hex'),output['nOut']) 
+                        claim_id = lbrycrd.rev_hex(claim_id.encode('hex'))
+                        output['claim_id'] = claim_id
                     elif txout[0] & TYPE_SUPPORT:
                         claim_name, claim_id = txout[1][0]
                         output['name'] = claim_name

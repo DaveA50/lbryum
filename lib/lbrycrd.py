@@ -21,6 +21,7 @@ import hashlib
 import base64
 import re
 import hmac
+import struct 
 
 import version
 from util import print_error, InvalidPassword
@@ -50,6 +51,10 @@ RECOMMENDED_CLAIMTRIE_HASH_CONFIRMS = 6
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
+
+def claim_id_hash(txid, n):
+    return hash_160(txid + struct.pack('>I',n))
+
 
 def strip_PKCS7_padding(s):
     """return s stripped of PKCS7 padding"""

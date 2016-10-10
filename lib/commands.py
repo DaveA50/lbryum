@@ -418,7 +418,7 @@ class Commands:
             if claim_name is not None and claim_val is not None and claim_id is not None and abandon_txid is not None:
                 assert len(outputs) == 1
                 txout_type |= TYPE_UPDATE
-                val = ((claim_name, claim_val, claim_id), val)
+                val = ((claim_name, claim_id, claim_val), val)
             elif claim_name is not None and claim_id is not None:
                 assert len(outputs) == 1
                 txout_type |= TYPE_SUPPORT
@@ -449,7 +449,6 @@ class Commands:
         """Create and broadcast transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
-        self.wallet.add_transaction(Hash(str(tx)).encode('hex'), tx)
         return self.network.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]))
 
     @command('wp')

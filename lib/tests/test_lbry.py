@@ -62,9 +62,15 @@ class Test_Lbry(unittest.TestCase):
               }
        
         out = claims.verify_proof(proof,root_hash[::-1].encode('hex'),'a')
+        self.assertEqual(out,True)
 
 
 
-
-
-
+    def test_claimid_hash(self):
+        txid= "4d08012feefec192bdb45495dcedc171a56d369539ce2d589e3e1ec81a882bb4"
+        nout = 1
+        claim_id = "a438fc7701e10e0e5c41d7a342be1190d9bed57b"
+        
+        
+        out = lbrycrd.claim_id_hash(lbrycrd.rev_hex(txid).decode('hex'),nout)
+        self.assertEqual(claim_id,lbrycrd.rev_hex(out.encode('hex')))

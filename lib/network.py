@@ -702,7 +702,7 @@ class Network(util.DaemonThread):
             if req_if == interface and req_height == response['params'][0]:
                 next_height = self.blockchain.connect_header(data['chain'], response['result'])
                 # If not finished, get the next header
-                if next_height in [True, False]:
+                if next_height is True or next_height is False:
                     self.bc_requests.popleft()
                     if next_height:
                         self.catchup_progress += 1

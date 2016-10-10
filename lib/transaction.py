@@ -393,10 +393,10 @@ class NameClaim(object):
 
 
 class ClaimUpdate(object):
-    def __init__(self, name, value, claim_id):
+    def __init__(self, name, claim_id, value):
         self.name = name
-        self.value = value
         self.claim_id = claim_id
+        self.value = value
 
 
 class ClaimSupport(object):
@@ -457,7 +457,7 @@ def decode_claim_script(decoded_script):
     elif decoded_script[0][0] == opcodes.OP_UPDATE_CLAIM:
         if name is None or value is None or claim_id is None:
             return False
-        claim = ClaimUpdate(name, value, claim_id)
+        claim = ClaimUpdate(name, claim_id, value)
     elif decoded_script[0][0] == opcodes.OP_SUPPORT_CLAIM:
         if name is None or claim_id is None:
             return False
@@ -479,7 +479,7 @@ def get_address_from_output_script(script_bytes):
             claim_args = (claim_info.name, claim_info.claim_id)
             output_type |= TYPE_SUPPORT
         elif isinstance(claim_info, ClaimUpdate):
-            claim_args = (claim_info.name, claim_info.value, claim_info.claim_id)
+            claim_args = (claim_info.name, claim_info.claim_id, claim_info.value)
             output_type |= TYPE_UPDATE
 
     # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
@@ -705,7 +705,7 @@ class Transaction:
             script += '6d75'
         elif output_type & TYPE_UPDATE:
             claim, addr = addr
-            claim_name, claim_value, claim_id = claim
+            claim_name, claim_id, claim_value = claim
             script += 'b7'
             script += push_script(claim_name.encode('hex'))
             script += push_script(claim_id.encode('hex'))
